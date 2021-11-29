@@ -61,6 +61,18 @@ export function createUriAndTermNamespace<T extends string>(baseUri: string, ...
     { terms: createTermNamespace(baseUri, ...localNames) });
 }
 
+
+export const ACL = createUriAndTermNamespace('http://www.w3.org/ns/auth/acl#',
+  'Authorization',
+  'Read',
+  'Write',
+  'Append',
+  'Control',
+  'agentClass',
+  'accessTo',
+  'default',
+  'mode');
+
 export const AS = createUriAndTermNamespace('https://www.w3.org/ns/activitystreams#',
   'Announce',
   'Person',
@@ -92,6 +104,9 @@ export const DCT = createUriAndTermNamespace('http://purl.org/dc/terms/',
   'subject',
   'title',
   'modified');
+
+export const FOAF = createUriAndTermNamespace('http://xmlns.com/foaf/0.1/',
+  'Agent');
 
 export const LDES = createUriAndTermNamespace('https://w3id.org/ldes#',
   'EventStream',
