@@ -7,7 +7,7 @@
 import {readFileSync} from "fs";
 import {Session} from "@inrupt/solid-client-authn-node";
 import {config} from 'dotenv';
-
+import {LDESinSolid} from "./LDESinSolid";
 
 const credentials = JSON.parse(readFileSync('config.json','utf-8'));
 config();
@@ -18,19 +18,27 @@ async function authorisedPost(): Promise<void> {
     console.log("New refresh token: ", newToken);
   });
   await session1.login({
-    // 2. Use the authenticated credentials to log in the session.
     clientId: credentials.clientId,
     clientSecret: credentials.clientSecret,
     refreshToken: credentials.refreshToken,
-    // Set oidcIssuer to the Solid Identity Provider associated with the credentials.
     oidcIssuer: credentials.issuer,
-    // If the refresh token is updated by the Identity Provider, this callback gets invoked.
   });
-  if (session1.info.isLoggedIn) {
-    const response = await session1.fetch('https://tree.linkeddatafragments.org/announcements/root.ttl');
-    console.log(await response.text());
-  }
-  await session1.logout();
+  const ldes = new LDESinSolid(session1,'https://tree.linkeddatafragments.org/announcements/',5);
+  // console.time('get Resources');
+  // const amount = await ldes.getAmountResources();
+  // console.log(amount);
+  // console.timeEnd('get Resources');
+
+  // create container
+  // await ldes.createContainer('test');
+  // update inbox
+  // await ldes.updateInbox('test');
+
+  // update acl?
+  // const response = await session1.fetch('https://tree.linkeddatafragments.org/announcements/test/.acl');
+  // console.log(await response.text());
+
+  await ldes.addrelation('1638189083587');
   process.exit();
 }
 
