@@ -8,6 +8,7 @@ import {readFileSync} from "fs";
 import {Session} from "@inrupt/solid-client-authn-node";
 import {config} from 'dotenv';
 import {LDESinSolid} from "./LDESinSolid";
+import {Orchestrator} from "./Orchestrator";
 
 const credentials = JSON.parse(readFileSync('config.json','utf-8'));
 config();
@@ -24,19 +25,11 @@ async function authorisedPost(): Promise<void> {
     oidcIssuer: credentials.issuer,
   });
 
-  const ldes = new LDESinSolid(session,'https://tree.linkeddatafragments.org/announcements/',5);
+  const ldes = new LDESinSolid(session,'https://tree.linkeddatafragments.org/announcements/',1);
 
-  console.log(await ldes.orchestrate());
-  // console.time('get Resources');
-  // const amount = await ldes.getAmountResources();
-  // console.log(amount);
-  // console.timeEnd('get Resources');
-  const response= await session.fetch('https://tree.linkeddatafragments.org/announcements/1636985640000/.acl', {
-    headers: {
-      'Accept': 'text/turtle'
-    }
-  });
-  console.log(await response.text());
+  const orchestrator = new Orchestrator(ldes);
+  await orchestrator.init();
+  await orchestrator.execute();
 
   process.exit();
 }
