@@ -14,6 +14,7 @@ export class Orchestrator {
 
   constructor(ldes: LDESinSolid) {
     this.ldes = ldes;
+    // todo: add agent
   }
   public async init(): Promise<void>{
     await this.ldes.init();

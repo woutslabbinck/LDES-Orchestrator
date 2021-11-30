@@ -7,8 +7,9 @@
 import {Session} from "@inrupt/solid-client-authn-node";
 import {DataFactory, Store, Writer} from "n3";
 import rdfParser from 'rdf-parse';
+import {createAclContent} from "./util/Acl";
 import {Acl} from "./util/Interfaces";
-import { LDP, RDF, TREE, XSD} from "./util/Vocabularies";
+import {ACL, LDP, RDF, TREE, XSD} from "./util/Vocabularies";
 
 const {namedNode, literal} = DataFactory;
 
@@ -44,7 +45,7 @@ export class LDESinSolid {
     return this._containerAmount;
   }
 
-  get shapeIRI(): string  {
+  get shapeIRI(): string {
     if (!this._shapeIRI) throw  Error("You should have initialised.");
     return this._shapeIRI;
   }
@@ -53,7 +54,7 @@ export class LDESinSolid {
     return this._session;
   }
 
-  public async init(): Promise<void>{
+  public async init(): Promise<void> {
     await this.getShape();
   }
 
@@ -141,6 +142,8 @@ export class LDESinSolid {
   }
 
   public async addShape(newContainerName: string): Promise<Response> {
+    this.isLoggedIn();
+
     // add constraint to new container
     const newContainerIRI = `${this._root + newContainerName}/`;
     const response = await this._session.fetch(newContainerIRI, {
@@ -154,6 +157,8 @@ export class LDESinSolid {
   }
 
   public async updateAcl(aclIRI: string, aclBody: Acl[]): Promise<Response> {
+    this.isLoggedIn();
+
     const response = await this._session.fetch(aclIRI, {
       method: "PUT",
       headers: {
@@ -188,8 +193,10 @@ export class LDESinSolid {
      * @returns {Promise<Response>}
      */
   public async addRelation(newContainerName: string): Promise<Response> {
-    const rootIRI = `${this._root}root.ttl`;
-    const newContainerIRI = `${this._root + newContainerName}/`;
+    this.isLoggedIn();
+
+    const rootIRI = `${this.root}root.ttl`;
+    const newContainerIRI = `${this.root + newContainerName}/`;
 
     const ldesRootStore = await this.fetchStore(rootIRI);
     const relationNode = ldesRootStore.createBlankNode();
@@ -200,7 +207,7 @@ export class LDESinSolid {
     }
     const treePath = treePaths[0].object;
     const dateTimeISO = new Date(Number(newContainerName)).toISOString();
-
+    // TODO: use addRelation
     ldesRootStore.addQuad(namedNode(rootIRI), namedNode(TREE.relation), relationNode);
 
     ldesRootStore.addQuad(relationNode, namedNode(RDF.type), namedNode(TREE.GreaterThanOrEqualToRelation));
@@ -220,4 +227,60 @@ export class LDESinSolid {
     return response;
   }
 
+  public async createLDES(shape: string, agent:string): Promise<void> {
+    this.isLoggedIn();
+    this._shapeIRI = shape;
+
+    // create rootcontainer
+    const createRootResponse = await this.session.fetch(this.root, {
+      method: "PUT",
+      headers: {
+        Link: '<http://www.w3.org/ns/ldp#Container>; rel="type"',
+        "Content-Type": 'text/turtle'
+      }
+    });
+    if (createRootResponse.status !== 201) {
+      throw Error(`Root "${this.root}" was not created | status code: ${createRootResponse.status}`);
+    }
+    console.log(`Root created: ${this.root}`);
+
+    const newContainerName = new Date().getTime().toString();
+
+    // create first container
+    const newContainerResponse = await this.createContainer(newContainerName);
+    if (newContainerResponse.status !== 201) {
+      throw Error(`New Container "${newContainerName}" was not created on ${this.root} | status code: ${newContainerResponse.status}`);
+    }
+    console.log(`Container created: ${newContainerName} at url: ${this.root+newContainerName}/`);
+
+
+    // create acl file for first container to read + append
+    const newContainerIRI = `${this.root + newContainerName}/`;
+    const orchestratorAcl = createAclContent('orchestrator', [ACL.Read, ACL.Write, ACL.Control], agent);
+    const aclReadAppend = createAclContent('#authorization', [ACL.Read, ACL.Append]);
+    const newAclResponse = await this.updateAcl(`${newContainerIRI}.acl`, [aclReadAppend, orchestratorAcl]);
+    if (newAclResponse.status !== 201) {
+      throw Error(`Creating the ACL file for ${newContainerIRI} was not successful | Status code: ${newAclResponse.status}`);
+    }
+    console.log(`ACL file of ${newContainerIRI} created as READ and APPEND ONLY; writing to the inbox is now possible.`);
+
+    // add shape triple to container .meta
+    // TODO: after shapevalidation update in CSS -> move after creating container
+    const addShapeResponse = await this.addShape(newContainerName);
+    if (addShapeResponse.status !== 205) {
+      throw Error(`Adding the shape to the new container was not successful | status code: ${addShapeResponse.status}`);
+    }
+    console.log(`Shape validation added to ${this.root + newContainerName}/`);
+
+    // change inbox header in root container .meta
+    // TODO: move together with adding shapevalidation
+    const updateInboxResponse = await this.updateInbox(newContainerName);
+    if (updateInboxResponse.status !== 205) {
+      throw Error(`Updating the inbox was not successful | Status code: ${updateInboxResponse.status}`);
+    }
+    console.log(`${this.root + newContainerName}/ is now the inbox.`);
+
+    // create root.ttl
+  // TODO: use createEventStream method (see index)
+  }
 }
