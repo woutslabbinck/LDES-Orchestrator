@@ -247,7 +247,7 @@ export class LDESinSolid {
     if (newContainerResponse.status !== 201) {
       throw Error(`New Container "${newContainerName}" was not created on ${this.root} | status code: ${newContainerResponse.status}`);
     }
-    console.log(`LDP container (${newContainerName}) created for the first ${this.containerAmount} members of the LDES  at url: ${newContainerResponse.url}`);
+    console.log(`LDP container (${newContainerName}) created for the first ${this.containerAmount} members of the LDES at url: ${newContainerResponse.url}`);
 
     // add shape triple to container .meta
     const addShapeResponse = await this.addShape(newContainerName);

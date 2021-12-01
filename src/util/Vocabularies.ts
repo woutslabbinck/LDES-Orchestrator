@@ -69,6 +69,7 @@ export const ACL = createUriAndTermNamespace('http://www.w3.org/ns/auth/acl#',
   'Append',
   'Control',
   'agentClass',
+  'agent',
   'accessTo',
   'default',
   'mode');

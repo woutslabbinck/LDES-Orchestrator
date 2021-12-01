@@ -2,7 +2,7 @@ import {URI} from "@treecg/tree-metadata-extraction/src/util/Util";
 
 /***************************************
  * Title: Interfaces
- * Description: Interfaces used for the LDES-Orchestrator
+ * Description: Interfaces used in LDES-Orchestrator
  * Author: Wout Slabbinck (wout.slabbinck@ugent.be)
  * Created on 30/11/2021
  *****************************************/
@@ -15,4 +15,15 @@ export interface Acl {
     default: URI;
     agent?: URI;
     agentClass?: URI;
+}
+
+export interface LDESConfig {
+    base : string;
+    treePath: string;
+    shape: string;
+    relationType: string;
+}
+
+export interface ACLConfig {
+    agent: string
 }

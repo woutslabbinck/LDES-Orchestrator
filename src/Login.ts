@@ -80,7 +80,15 @@ export async function login(): Promise<any> {
       );
     }
     const storedSession = JSON.parse(rawStoredSession);
-
+    console.log(`
+These are your login credentials:
+{
+  "refreshToken" : "${storedSession.refreshToken}",
+  "clientId"     : "${storedSession.clientId}",
+  "clientSecret" : "${storedSession.clientSecret}",
+  "issuer"       : "${storedSession.issuer}",
+}
+`);
     res.send(
       "The tokens have been sent to @inrupt/generate-oidc-token. You can close this window."
     );
