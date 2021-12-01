@@ -8,8 +8,9 @@ import {Session} from "@inrupt/solid-client-authn-node";
 import {DataFactory, Store, Writer} from "n3";
 import rdfParser from 'rdf-parse';
 import {createAclContent} from "./util/Acl";
+import {addRelation, createEventStream} from "./util/EventStream";
 import {Acl} from "./util/Interfaces";
-import {ACL, LDP, RDF, TREE, XSD} from "./util/Vocabularies";
+import {ACL, LDP, TREE} from "./util/Vocabularies";
 
 const {namedNode, literal} = DataFactory;
 
@@ -196,24 +197,16 @@ export class LDESinSolid {
     this.isLoggedIn();
 
     const rootIRI = `${this.root}root.ttl`;
-    const newContainerIRI = `${this.root + newContainerName}/`;
-
     const ldesRootStore = await this.fetchStore(rootIRI);
-    const relationNode = ldesRootStore.createBlankNode();
 
+    // get tree:path from earlier relations
     const treePaths = ldesRootStore.getQuads(null, TREE.path, null, null);
     if (treePaths.length === 0) {
       throw Error('No tree path present in the current relations');
     }
     const treePath = treePaths[0].object;
-    const dateTimeISO = new Date(Number(newContainerName)).toISOString();
-    // TODO: use addRelation
-    ldesRootStore.addQuad(namedNode(rootIRI), namedNode(TREE.relation), relationNode);
 
-    ldesRootStore.addQuad(relationNode, namedNode(RDF.type), namedNode(TREE.GreaterThanOrEqualToRelation));
-    ldesRootStore.addQuad(relationNode, namedNode(TREE.node), namedNode(newContainerIRI));
-    ldesRootStore.addQuad(relationNode, namedNode(TREE.path), treePath);
-    ldesRootStore.addQuad(relationNode, namedNode(TREE.value), literal(dateTimeISO, namedNode(XSD.dateTime)));
+    addRelation(ldesRootStore, treePath.id, TREE.GreaterThanOrEqualToRelation, newContainerName, this.root);
 
     const writer = new Writer();
     const text = writer.quadsToString(ldesRootStore.getQuads(null, null, null, null));
@@ -227,7 +220,7 @@ export class LDESinSolid {
     return response;
   }
 
-  public async createLDES(shape: string, agent:string): Promise<void> {
+  public async createLDES(shape: string, agent: string, treePath: string): Promise<void> {
     this.isLoggedIn();
     this._shapeIRI = shape;
 
@@ -240,9 +233,12 @@ export class LDESinSolid {
       }
     });
     if (createRootResponse.status !== 201) {
+      if (createRootResponse.status === 205){
+        throw Error(`Root "${this.root}" already exists | status code: ${createRootResponse.status}`);
+      }
       throw Error(`Root "${this.root}" was not created | status code: ${createRootResponse.status}`);
     }
-    console.log(`Root created: ${this.root}`);
+    console.log(`LDP container created: ${createRootResponse.url}`);
 
     const newContainerName = new Date().getTime().toString();
 
@@ -251,8 +247,21 @@ export class LDESinSolid {
     if (newContainerResponse.status !== 201) {
       throw Error(`New Container "${newContainerName}" was not created on ${this.root} | status code: ${newContainerResponse.status}`);
     }
-    console.log(`Container created: ${newContainerName} at url: ${this.root+newContainerName}/`);
+    console.log(`LDP container (${newContainerName}) created for the first ${this.containerAmount} members of the LDES  at url: ${newContainerResponse.url}`);
 
+    // add shape triple to container .meta
+    const addShapeResponse = await this.addShape(newContainerName);
+    if (addShapeResponse.status !== 205) {
+      throw Error(`Adding the shape to the new container was not successful | status code: ${addShapeResponse.status}`);
+    }
+    console.log(`Shape validation added to ${addShapeResponse.url}`);
+
+    // change inbox header in root container .meta
+    const updateInboxResponse = await this.updateInbox(newContainerName);
+    if (updateInboxResponse.status !== 205) {
+      throw Error(`Updating the inbox was not successful | Status code: ${updateInboxResponse.status}`);
+    }
+    console.log(`${updateInboxResponse.url} is now the inbox of the LDES.`);
 
     // create acl file for first container to read + append
     const newContainerIRI = `${this.root + newContainerName}/`;
@@ -264,23 +273,22 @@ export class LDESinSolid {
     }
     console.log(`ACL file of ${newContainerIRI} created as READ and APPEND ONLY; writing to the inbox is now possible.`);
 
-    // add shape triple to container .meta
-    // TODO: after shapevalidation update in CSS -> move after creating container
-    const addShapeResponse = await this.addShape(newContainerName);
-    if (addShapeResponse.status !== 205) {
-      throw Error(`Adding the shape to the new container was not successful | status code: ${addShapeResponse.status}`);
-    }
-    console.log(`Shape validation added to ${this.root + newContainerName}/`);
-
-    // change inbox header in root container .meta
-    // TODO: move together with adding shapevalidation
-    const updateInboxResponse = await this.updateInbox(newContainerName);
-    if (updateInboxResponse.status !== 205) {
-      throw Error(`Updating the inbox was not successful | Status code: ${updateInboxResponse.status}`);
-    }
-    console.log(`${this.root + newContainerName}/ is now the inbox.`);
-
     // create root.ttl
-  // TODO: use createEventStream method (see index)
+    const eventStream = await createEventStream(this.shapeIRI, treePath, newContainerName, this.root);
+    const writer = new Writer();
+    const rootText = writer.quadsToString(eventStream.getQuads(null, null, null, null));
+    const postRootResponse = await this.session.fetch(this.root, {
+      method: "POST",
+      headers: {
+        "Content-Type": 'text/turtle',
+        Link: '<http://www.w3.org/ns/ldp#Resource>; rel="type"',
+        slug: 'root.ttl'
+      },
+      body: rootText
+    });
+    if (postRootResponse.status !== 201) {
+      throw Error(`Creating root.ttl was not successful | Status code: ${postRootResponse.status}`);
+    }
+    console.log(`${postRootResponse.url} is the EventStream and view of the LDES in LDP.`);
   }
 }

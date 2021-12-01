@@ -22,6 +22,8 @@ export class Orchestrator {
 
   public async execute(): Promise<void> {
     const currentAmount = await this.ldes.getAmountResources();
+    const oldContainer = await this.ldes.getCurrentContainer();
+
     if (currentAmount < this.ldes.containerAmount) {
       console.log(`No need for orchestrating as current amount of resources (${currentAmount}) is less than the maximum allowed amount of resources per container (${this.ldes.containerAmount}).`);
       return;
@@ -34,25 +36,24 @@ export class Orchestrator {
     if (newContainerResponse.status !== 201) {
       throw Error(`New Container "${newContainerName}" was not created on ${this.ldes.root} | status code: ${newContainerResponse.status}`);
     }
-    console.log('Container created');
+    console.log(`LDP container (${newContainerName}) created for the next ${this.ldes.containerAmount} members of the LDES  at url: ${newContainerResponse.url}`);
 
 
-    // temp remove shape validation on old container
-    // TODO: remove these lines after updating CSS as the shape validation must stay there
-    const container = await this.ldes.getCurrentContainer();
-    const resp = await this.ldes.session.fetch(container, {
-      method: "PUT",
-      headers: {
-        "Content-Type": 'text/turtle'
-      }
-    });
-    if (resp.status !== 205) {
-      console.log(await resp.text());
-      throw Error("for some reason I could not delete shape triple");
+    // add shape triple to container .meta
+    const addShapeResponse = await this.ldes.addShape(newContainerName);
+    if (addShapeResponse.status !== 205) {
+      throw Error(`Adding the shape to the new container was not successful | status code: ${addShapeResponse.status}`);
     }
+    console.log(`Shape validation added to ${addShapeResponse.url}`);
+
+    // change inbox header in root container .meta
+    const updateInboxResponse = await this.ldes.updateInbox(newContainerName);
+    if (updateInboxResponse.status !== 205) {
+      throw Error(`Updating the inbox was not successful | Status code: ${updateInboxResponse.status}`);
+    }
+    console.log(`${updateInboxResponse.url} is now the inbox of the LDES.`);
 
     // update acl of old container to only read
-    const oldContainer = await this.ldes.getCurrentContainer();
     const orchestratorAcl = createAclContent('orchestrator', [ACL.Read, ACL.Write, ACL.Control], 'https://pod.inrupt.com/woutslabbinck/profile/card#me');
     const aclReadStore = createAclContent('#authorization', [ACL.Read]);
     const oldAclResponse = await this.ldes.updateAcl(`${oldContainer}.acl`, [aclReadStore, orchestratorAcl]);
@@ -71,29 +72,15 @@ export class Orchestrator {
     }
     console.log(`ACL file of ${newContainerIRI} created as READ and APPEND ONLY; writing to the inbox is now possible.`);
 
-    // add shape triple to container .meta
-    // TODO: after shapevalidation update in CSS -> move after creating container
-    const addShapeResponse = await this.ldes.addShape(newContainerName);
-    if (addShapeResponse.status !== 205) {
-      throw Error(`Adding the shape to the new container was not successful | status code: ${addShapeResponse.status}`);
-    }
-    console.log(`Shape validation added to ${this.ldes.root + newContainerName}/`);
 
-    // change inbox header in root container .meta
-    // TODO: move together with adding shapevalidation
-    const updateInboxResponse = await this.ldes.updateInbox(newContainerName);
-    if (updateInboxResponse.status !== 205) {
-      throw Error(`Updating the inbox was not successful | Status code: ${updateInboxResponse.status}`);
-    }
-    console.log(`${this.ldes.root + newContainerName}/ is now the inbox.`);
 
     // update relation in root.ttl
     const addRelationResponse = await this.ldes.addRelation(newContainerName);
     if (addRelationResponse.status !== 205) {
       throw Error(`Updating the LDES root was not successful | Status code: ${addRelationResponse.status}`);
     }
-    console.log(`${this.ldes.root}root.ttl is updated with a new relation to ${newContainerIRI}`);
+    console.log(`${addRelationResponse.url}  is updated with a new relation to ${newContainerIRI}`);
 
-    console.log(`Orchestrating succeeded: new container can be found at ${this.ldes.root}${newContainerName}/`);
+    console.log(`Orchestrating succeeded: new container can be found at ${newContainerIRI}`);
   }
 }
