@@ -12,7 +12,7 @@ import {LDESinSolid} from "./LDESinSolidv2";
 const credentials = JSON.parse(readFileSync('config.json', 'utf-8'));
 config();
 
-async function getConfig(): Promise<void> {
+async function getSession(): Promise<Session>{
   const session = new Session();
   session.onNewRefreshToken((newToken: string): void => {
     console.log("New refresh token: ", newToken);
@@ -23,7 +23,10 @@ async function getConfig(): Promise<void> {
     refreshToken: credentials.refreshToken,
     oidcIssuer: credentials.issuer,
   });
-
+  return session;
+}
+async function getConfig(): Promise<void> {
+  const session = await getSession();
   const base = 'https://tree.linkeddatafragments.org/announcements/test/';
   // const base = 'https://tree.linkeddatafragments.org/announcements/';
 
@@ -33,12 +36,28 @@ async function getConfig(): Promise<void> {
   console.log(await ldes.getAmountResources());
 
 
-  process.exit();
 }
 
-
+async function createNewLDES(): Promise<void> {
+  const session = await getSession();
+  const ldesConfig = {
+    base: 'https://tree.linkeddatafragments.org/announcements/lol/' ,
+    treePath: 'http://purl.org/dc/terms/modified' , // valid shacl path
+    shape: 'https://tree.linkeddatafragments.org/announcements/shape' , // IRI of the shape (to which all the members of the EventStream must conform to) (note: currently only SHACL shapes)
+    relationType: 'https://w3id.org/tree#GreaterThanOrEqualToRelation' , // default: https://w3id.org/tree#GreaterThanOrEqualToRelation
+  };
+  const aclConfig = {
+    agent: 'https://pod.inrupt.com/woutslabbinck/profile/card#me' // this is the webId used in the session
+  // this is the webId used in the session
+  };
+  const ldes =new LDESinSolid(ldesConfig,aclConfig,session);
+  await ldes.createLDESinLDP();
+}
 async function execute(): Promise<void>{
   // test whether getConfig works
   await getConfig();
+  // await createNewLDES();
+  process.exit();
+
 }
 execute();
