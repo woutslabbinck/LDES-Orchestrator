@@ -4,8 +4,8 @@
  * Author: Wout Slabbinck (wout.slabbinck@ugent.be)
  * Created on 29/11/2021
  *****************************************/
-import { namedNode } from '@rdfjs/data-model';
-import { NamedNode } from 'rdf-js';
+import {namedNode} from '@rdfjs/data-model';
+import {NamedNode} from 'rdf-js';
 
 type RecordOf<TKey extends any[], TValue> = Record<TKey[number], TValue>;
 
@@ -18,7 +18,7 @@ export type Namespace<TKey extends any[], TValue> =
  */
 export function createNamespace<TKey extends string, TValue>(
   baseUri: string,
-  toValue: (expanded: string)=> TValue,
+  toValue: (expanded: string) => TValue,
   ...localNames: TKey[]
 ):
     Namespace<typeof localNames, TValue> {
@@ -58,7 +58,7 @@ export function createTermNamespace<T extends string>(baseUri: string, ...localN
 export function createUriAndTermNamespace<T extends string>(baseUri: string, ...localNames: T[]):
     Namespace<typeof localNames, string> & { terms: Namespace<typeof localNames, NamedNode> } {
   return Object.assign(createUriNamespace(baseUri, ...localNames),
-    { terms: createTermNamespace(baseUri, ...localNames) });
+    {terms: createTermNamespace(baseUri, ...localNames)});
 }
 
 

@@ -1,84 +1,103 @@
 /***************************************
- * Title: LDESinSolid
+ * Title: LDESinSolidv2
  * Description: class for LDES in Solid
  * Author: Wout Slabbinck (wout.slabbinck@ugent.be)
- * Created on 29/11/2021
+ * Created on 01/12/2021
  *****************************************/
 import {Session} from "@inrupt/solid-client-authn-node";
-import {DataFactory, Store, Writer} from "n3";
-import rdfParser from 'rdf-parse';
+import {Store, Writer} from "n3";
+import rdfParser from "rdf-parse";
+import {Logger} from "./logging/Logger";
 import {createAclContent} from "./util/Acl";
-import {addRelation, createEventStream} from "./util/EventStream";
-import {Acl} from "./util/Interfaces";
-import {ACL, LDP, TREE} from "./util/Vocabularies";
-
-const {namedNode, literal} = DataFactory;
+import {createEventStream, addRelation} from "./util/EventStream";
+import {Acl, ACLConfig, LDESConfig} from "./util/Interfaces";
+import {ACL, LDP, RDF, TREE} from "./util/Vocabularies";
 
 const parse = require('parse-link-header');
 const storeStream = require("rdf-store-stream").storeStream;
 const streamify = require('streamify-string');
 
 export class LDESinSolid {
+  private readonly _ldesConfig: LDESConfig;
+  private readonly _aclConfig: ACLConfig;
   private readonly _session: Session;
-  private readonly _root: string;
-  private readonly _containerAmount: number;
-  private _shapeIRI: string | undefined;
+  private readonly _amount: number;
+  private static readonly staticLogger = new Logger(LDESinSolid.name);
+  private readonly logger = LDESinSolid.staticLogger;
 
-  constructor(session: Session, root: string)
-  constructor(session: Session, root: string, amount: number);
-  constructor(session: Session, root: string, amount?: number) {
+  constructor(ldesConfig: LDESConfig, aclConfig: ACLConfig, session: Session)
+  constructor(ldesConfig: LDESConfig, aclConfig: ACLConfig, session: Session, amount: number)
+  constructor(ldesConfig: LDESConfig, aclConfig: ACLConfig, session: Session, amount?: number) {
+    this._ldesConfig = ldesConfig;
+    this._aclConfig = aclConfig;
     this._session = session;
-    this._root = root;
+
     if (amount) {
-      this._containerAmount = amount;
+      this._amount = amount;
     } else {
-      this._containerAmount = 100;
+      this._amount = 100;
     }
-    this.isLoggedIn();
-    // maybe check if valid root? (can't do that in constructor)
   }
 
-  get root(): string {
-    return this._root;
+  get ldesConfig(): LDESConfig {
+    return this._ldesConfig;
   }
 
-  get containerAmount(): number {
-    return this._containerAmount;
-  }
-
-  get shapeIRI(): string {
-    if (!this._shapeIRI) throw  Error("You should have initialised.");
-    return this._shapeIRI;
+  get aclConfig(): ACLConfig {
+    return this._aclConfig;
   }
 
   get session(): Session {
     return this._session;
   }
 
-  public async init(): Promise<void> {
-    await this.getShape();
+  get amount(): number {
+    return this._amount;
   }
 
-  // TODO: use collection
-  private async getShape(): Promise<void> {
-    const currentContainerIRI = await this.getCurrentContainer();
-    const headResponse = await this._session.fetch(currentContainerIRI,
-      {method: 'HEAD'});
-    const linkHeaders = parse(headResponse.headers.get('link'));
-    if (!linkHeaders) {
-      throw new Error(`No Link Header present when fetching: ${currentContainerIRI}`);
-    }
-    const shapeLink = linkHeaders[LDP.constrainedBy];
-    if (!shapeLink) {
-      throw new Error('No http://www.w3.org/ns/ldp#constrainedBy Link Header present.');
-    }
-    this._shapeIRI = shapeLink.url;
+  static async getConfig(base: string, session: Session): Promise<{ ldesConfig: LDESConfig, aclConfig: ACLConfig }> {
+    const rootIRI = `${base}root.ttl`;
+    const rootStore = await LDESinSolid.fetchStore(rootIRI, session);
+    const aclStore = await LDESinSolid.fetchStore(`${base}.acl`, session);
+
+    // Assumes EventStream its subject is :#Collection
+    const shapeIRI = rootStore.getQuads(`${rootIRI}#Collection`, TREE.shape, null, null)[0].object.id;
+
+    // assumes node is called :root.ttl and there MUST be one relation
+    // when no relation is present, the LDES in LDP is not created yet
+    const relation = rootStore.getQuads(rootIRI, TREE.relation, null, null)[0].object.id;
+
+    const relationType = rootStore.getQuads(relation, RDF.type, null, null)[0].object.id;
+    const treePath = rootStore.getQuads(relation, TREE.path, null, null)[0].object.id;
+
+    const ldesConfig: LDESConfig = {
+      base: base,
+      relationType: relationType,
+      shape: shapeIRI,
+      treePath: treePath
+    };
+
+    // currently only handles one agent
+    // todo error handling
+    const aclConfig: ACLConfig = {
+      agent: aclStore.getQuads(null, ACL.agent, null, null)[0].object.id
+    };
+    return {ldesConfig, aclConfig};
+  }
+
+  public async getAmountResources(): Promise<number> {
+    // Get current container used as inbox
+    const currentContainerLocation = await this.getCurrentContainer();
+
+    // get container and transform to store
+    const store = await LDESinSolid.fetchStore(currentContainerLocation, this.session);
+
+    const resources = store.getQuads(currentContainerLocation, LDP.contains, null, null);
+    return resources.length;
   }
 
   public async getCurrentContainer(): Promise<string> {
-    this.isLoggedIn();
-
-    const headResponse = await this._session.fetch(this._root,
+    const headResponse = await this.session.fetch(this.ldesConfig.base,
       {method: 'HEAD'});
     const linkHeaders = parse(headResponse.headers.get('link'));
     if (!linkHeaders) {
@@ -91,29 +110,22 @@ export class LDESinSolid {
     return `${inboxLink.url}`;
   }
 
-  public async getAmountResources(): Promise<number> {
-    this.isLoggedIn();
-    // Get current container used as inbox
-    const currentContainerLocation = await this.getCurrentContainer();
-
-    // get container and transform to store
-    const store = await this.fetchStore(currentContainerLocation);
-
-    const resources = store.getQuads(currentContainerLocation, LDP.contains, null, null);
-    return resources.length;
-  }
-
   /**
      * Fetches the iri and transforms the contents to a N3 Store
      * Note: currently only works for text/turle
      * @param iri
+     * @param session
      * @returns {Promise<Store>}
      */
-  private async fetchStore(iri: string): Promise<Store> {
-    this.isLoggedIn();
-
-    const response = await this._session.fetch(iri);
+  private static async fetchStore(iri: string, session: Session): Promise<Store> {
+    const response = await session.fetch(iri, {
+      method: "GET",
+      headers: {
+        Accept: "text/turtle"
+      }
+    });
     if (response.status !== 200) {
+      this.staticLogger.info(await response.text());
       throw Error(`Fetching ${iri} to parse it into an N3 Store has failed.`);
     }
     const currentContainerText = await response.text();
@@ -123,44 +135,31 @@ export class LDESinSolid {
     return store;
   }
 
-  private isLoggedIn(): void {
-    if (!this._session.info.isLoggedIn) {
-      throw Error("Not logged in a Solid Session.");
-    }
-  }
-
-  public async createContainer(newContainerName: string): Promise<Response> {
-    this.isLoggedIn();
-
-    const response = await this._session.fetch(`${this._root + newContainerName}/`, {
+  /**
+     * Creates a container. Only succeeds when a new container was created
+     * @param iri
+     * @param session
+     * @returns {Promise<void>}
+     */
+  private static async createContainer(iri: string, session: Session): Promise<void> {
+    const response = await session.fetch(iri, {
       method: "PUT",
       headers: {
         Link: '<http://www.w3.org/ns/ldp#Container>; rel="type"',
         "Content-Type": 'text/turtle'
       }
     });
-    return response;
-  }
-
-  public async addShape(newContainerName: string): Promise<Response> {
-    this.isLoggedIn();
-
-    // add constraint to new container
-    const newContainerIRI = `${this._root + newContainerName}/`;
-    const response = await this._session.fetch(newContainerIRI, {
-      method: "PUT",
-      headers: {
-        Link: `<${this.shapeIRI}>; rel="${LDP.constrainedBy}"`,
-        "Content-Type": 'text/turtle'
+    if (response.status !== 201) {
+      if (response.status === 205) {
+        throw Error(`Root "${iri}" already exists | status code: ${response.status}`);
       }
-    });
-    return response;
+      throw Error(`Root "${iri}" was not created | status code: ${response.status}`);
+    }
+    this.staticLogger.info(`LDP container created: ${response.url}`);
   }
 
-  public async updateAcl(aclIRI: string, aclBody: Acl[]): Promise<Response> {
-    this.isLoggedIn();
-
-    const response = await this._session.fetch(aclIRI, {
+  private static async updateAcl(aclIRI: string, aclBody: Acl[], session: Session): Promise<Response> {
+    const response = await session.fetch(aclIRI, {
       method: "PUT",
       headers: {
         'Content-Type': 'application/ld+json',
@@ -168,116 +167,99 @@ export class LDESinSolid {
       },
       body: JSON.stringify(aclBody)
     });
+    if (!(response.status === 201 || response.status === 205)) {
+      throw Error(`Creating/Updating the ACL file (${aclIRI}) was not successful | Status code: ${response.status}`);
+    }
     return response;
   }
 
-  /**
-     *
-     * @param newContainerName
-     * @returns {Promise<Response>}
-     */
-  public async updateInbox(newContainerName: string): Promise<Response> {
-    this.isLoggedIn();
-    const response = await this._session.fetch(this._root, {
+  private static async addShape(iri: string, shapeIRI: string, session: Session): Promise<void> {
+    const response = await session.fetch(iri, {
       method: "PUT",
       headers: {
-        Link: `<${this._root + newContainerName}/>; rel="${LDP.inbox}"`,
+        Link: `<${shapeIRI}>; rel="${LDP.constrainedBy}"`,
         "Content-Type": 'text/turtle'
       }
     });
-    return response;
+    if (response.status !== 205) {
+      throw Error(`Adding the shape to the container (${iri}) was not successful | status code: ${response.status}`);
+    }
+    this.staticLogger.info(`Shape validation added to ${response.url}`);
   }
 
-  /**
-     *
-     * @param newContainerName
-     * @returns {Promise<Response>}
-     */
-  public async addRelation(newContainerName: string): Promise<Response> {
-    this.isLoggedIn();
-
-    const rootIRI = `${this.root}root.ttl`;
-    const ldesRootStore = await this.fetchStore(rootIRI);
-
-    // get tree:path from earlier relations
-    const treePaths = ldesRootStore.getQuads(null, TREE.path, null, null);
-    if (treePaths.length === 0) {
-      throw Error('No tree path present in the current relations');
+  private static async updateInbox(iri: string, inboxIRI: string, session: Session): Promise<void> {
+    const response = await session.fetch(iri, {
+      method: "PUT",
+      headers: {
+        Link: `<${inboxIRI}>; rel="${LDP.inbox}"`,
+        "Content-Type": 'text/turtle'
+      }
+    });
+    if (response.status !== 205) {
+      throw Error(`Updating the inbox was not successful | Status code: ${response.status}`);
     }
-    const treePath = treePaths[0].object;
+    this.staticLogger.info(`${iri} is now the inbox of the LDES.`);
+  }
 
-    addRelation(ldesRootStore, treePath.id, TREE.GreaterThanOrEqualToRelation, newContainerName, this.root);
+  private static async addRelation(iri: string, ldesConfig: LDESConfig, session: Session): Promise<void> {
+    const rootIRI = `${ldesConfig.base}root.ttl`;
+    const rootStore = await this.fetchStore(rootIRI, session);
 
+    // get the new name from the iri with a regex (should be last string between slashes)
+    const regex = /\/([^/]*)\/$/.exec(iri);
+    if (!regex) throw Error(`expected "${iri}" to be an IRI.`);
+    const newNodeName = regex[1];
+
+    addRelation(rootStore, ldesConfig.treePath, ldesConfig.relationType, newNodeName, ldesConfig.base);
+
+    // Convert store to string
     const writer = new Writer();
-    const text = writer.quadsToString(ldesRootStore.getQuads(null, null, null, null));
-    const response = await this._session.fetch(rootIRI, {
-      method: 'PUT',
-      headers: {
-        "Content-Type": 'text/turtle'
-      },
-      body: text
-    });
-    return response;
-  }
+    const rootText = writer.quadsToString(rootStore.getQuads(null, null, null, null));
 
-  public async createLDES(shape: string, agent: string, treePath: string): Promise<void> {
-    this.isLoggedIn();
-    this._shapeIRI = shape;
-
-    // create rootcontainer
-    const createRootResponse = await this.session.fetch(this.root, {
+    // Update root.ttl
+    const updateRootResponse = await session.fetch(rootIRI, {
       method: "PUT",
       headers: {
-        Link: '<http://www.w3.org/ns/ldp#Container>; rel="type"',
-        "Content-Type": 'text/turtle'
-      }
+        "Content-Type": 'text/turtle',
+        Link: '<http://www.w3.org/ns/ldp#Resource>; rel="type"',
+      },
+      body: rootText
     });
-    if (createRootResponse.status !== 201) {
-      if (createRootResponse.status === 205){
-        throw Error(`Root "${this.root}" already exists | status code: ${createRootResponse.status}`);
-      }
-      throw Error(`Root "${this.root}" was not created | status code: ${createRootResponse.status}`);
+    if (updateRootResponse.status !== 205) {
+      throw Error(`Updating the LDES root was not successful | Status code: ${updateRootResponse.status}`);
     }
-    console.log(`LDP container created: ${createRootResponse.url}`);
+    this.staticLogger.info(`${updateRootResponse.url}  is updated with a new relation to ${iri}.`);
+  }
 
-    const newContainerName = new Date().getTime().toString();
+  public async createLDESinLDP(): Promise<void> {
+    // create root container
+    await LDESinSolid.createContainer(this.ldesConfig.base, this.session);
 
+    // create acl in root container (ACL:Control for agent and ACL:Read for everybody) // TODO: ACL permissions for everybody should be in config
+    const agentControlACL = createAclContent('orchestrator', [ACL.Read, ACL.Write, ACL.Control], this.aclConfig.agent);
+    const readACL = createAclContent('#authorization', [ACL.Read]);
+    await LDESinSolid.updateAcl(`${this.ldesConfig.base}.acl`, [agentControlACL, readACL], this.session);
+
+    const firstContainerName = new Date().getTime().toString();
+    const firstContainerIRI = `${this.ldesConfig.base + firstContainerName}/`;
     // create first container
-    const newContainerResponse = await this.createContainer(newContainerName);
-    if (newContainerResponse.status !== 201) {
-      throw Error(`New Container "${newContainerName}" was not created on ${this.root} | status code: ${newContainerResponse.status}`);
-    }
-    console.log(`LDP container (${newContainerName}) created for the first ${this.containerAmount} members of the LDES at url: ${newContainerResponse.url}`);
+    await LDESinSolid.createContainer(firstContainerIRI, this.session);
 
     // add shape triple to container .meta
-    const addShapeResponse = await this.addShape(newContainerName);
-    if (addShapeResponse.status !== 205) {
-      throw Error(`Adding the shape to the new container was not successful | status code: ${addShapeResponse.status}`);
-    }
-    console.log(`Shape validation added to ${addShapeResponse.url}`);
+    await LDESinSolid.addShape(firstContainerIRI, this.ldesConfig.shape, this.session);
 
     // change inbox header in root container .meta
-    const updateInboxResponse = await this.updateInbox(newContainerName);
-    if (updateInboxResponse.status !== 205) {
-      throw Error(`Updating the inbox was not successful | Status code: ${updateInboxResponse.status}`);
-    }
-    console.log(`${updateInboxResponse.url} is now the inbox of the LDES.`);
+    await LDESinSolid.updateInbox(this.ldesConfig.base, firstContainerIRI, this.session);
 
     // create acl file for first container to read + append
-    const newContainerIRI = `${this.root + newContainerName}/`;
-    const orchestratorAcl = createAclContent('orchestrator', [ACL.Read, ACL.Write, ACL.Control], agent);
-    const aclReadAppend = createAclContent('#authorization', [ACL.Read, ACL.Append]);
-    const newAclResponse = await this.updateAcl(`${newContainerIRI}.acl`, [aclReadAppend, orchestratorAcl]);
-    if (newAclResponse.status !== 201) {
-      throw Error(`Creating the ACL file for ${newContainerIRI} was not successful | Status code: ${newAclResponse.status}`);
-    }
-    console.log(`ACL file of ${newContainerIRI} created as READ and APPEND ONLY; writing to the inbox is now possible.`);
+    const readAppendACL = createAclContent('#authorization', [ACL.Read, ACL.Append]);
+    await LDESinSolid.updateAcl(`${firstContainerIRI}.acl`, [agentControlACL, readAppendACL], this.session);
 
     // create root.ttl
-    const eventStream = await createEventStream(this.shapeIRI, treePath, newContainerName, this.root);
+    const eventStream = await createEventStream(this.ldesConfig.shape, this.ldesConfig.treePath, firstContainerName, this.ldesConfig.base);
     const writer = new Writer();
     const rootText = writer.quadsToString(eventStream.getQuads(null, null, null, null));
-    const postRootResponse = await this.session.fetch(this.root, {
+    const postRootResponse = await this.session.fetch(this.ldesConfig.base, {
       method: "POST",
       headers: {
         "Content-Type": 'text/turtle',
@@ -289,6 +271,42 @@ export class LDESinSolid {
     if (postRootResponse.status !== 201) {
       throw Error(`Creating root.ttl was not successful | Status code: ${postRootResponse.status}`);
     }
-    console.log(`${postRootResponse.url} is the EventStream and view of the LDES in LDP.`);
+    this.logger.info(`${postRootResponse.url} is the EventStream and view of the LDES in LDP.`);
+  }
+
+  public async createNewContainer(): Promise<void> {
+    const currentContainerAmountResources = await this.getAmountResources();
+    const oldContainer = await this.getCurrentContainer();
+
+    if (currentContainerAmountResources < this.amount) {
+      this.logger.info(`No need for orchestrating as current amount of resources (${currentContainerAmountResources}) is less than the maximum allowed amount of resources per container (${this.amount})`);
+      return;
+    }
+    this.logger.info(`Current amount of resources (${currentContainerAmountResources}) is greater or equal than the maximum allowed amount of resources per container (${this.amount}).`);
+    this.logger.info(`Creating new container as inbox has started:`);
+
+    const newContainerName = new Date().getTime().toString();
+    const newContainerIRI = `${this.ldesConfig.base + newContainerName}/`;
+
+    // create new container
+    await LDESinSolid.createContainer(newContainerIRI, this.session);
+
+    // add shape triple to container .meta
+    await LDESinSolid.addShape(newContainerIRI, this.ldesConfig.shape, this.session);
+
+    // create acl file for new container to read + append
+    const readAppendACL = createAclContent('#authorization', [ACL.Read, ACL.Append]);
+    const agentControlACL = createAclContent('orchestrator', [ACL.Read, ACL.Write, ACL.Control], this.aclConfig.agent);
+    await LDESinSolid.updateAcl(`${newContainerIRI}.acl`, [agentControlACL, readAppendACL], this.session);
+
+    // change inbox header in root container .meta
+    await LDESinSolid.updateInbox(this.ldesConfig.base, newContainerIRI, this.session);
+
+    // update acl of current container to only read
+    const readACL = createAclContent('#authorization', [ACL.Read]);
+    await LDESinSolid.updateAcl(`${oldContainer}.acl`, [agentControlACL, readACL], this.session);
+
+    // update relation in root.ttl
+    await LDESinSolid.addRelation(newContainerIRI, this.ldesConfig, this.session);
   }
 }

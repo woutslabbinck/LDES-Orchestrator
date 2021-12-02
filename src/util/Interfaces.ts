@@ -18,7 +18,7 @@ export interface Acl {
 }
 
 export interface LDESConfig {
-    base : string;
+    base: string;
     treePath: string;
     shape: string;
     relationType: string;

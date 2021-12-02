@@ -11,6 +11,7 @@ config();
 
 export class Logger {
   private readonly logger;
+
   constructor(loggable: Instance | string) {
     const label = typeof loggable === 'string' ? loggable : loggable.constructor.name;
     const level = process.env.LOGGER_LEVEL ? process.env.LOGGER_LEVEL : 'info';
@@ -33,8 +34,8 @@ export class Logger {
     });
   }
 
-  public log(level: LogLevel, message: string):void {
-    this.logger.log(level,message);
+  public log(level: LogLevel, message: string): void {
+    this.logger.log(level, message);
   }
 
   public error(message: string): void {
@@ -67,6 +68,7 @@ export class Logger {
   }
 
 }
+
 type LogLevel = 'error' | 'warn' | 'info' | 'verbose' | 'debug' | 'silly';
 
 interface Instance {

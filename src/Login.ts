@@ -27,6 +27,7 @@ const validatedOptions: InputOptions = {
   solidIdentityProvider: process.env.SOLID_IDP!
 
 };
+
 export async function login(): Promise<any> {
   const app = express();
   const port = 3000;
@@ -94,11 +95,12 @@ These are your login credentials:
     );
 
     // write session away
-    writeFileSync('config.json',JSON.stringify(storedSession));
+    writeFileSync('config.json', JSON.stringify(storedSession));
 
     server.close();
     process.exit();
   });
 }
+
 // login().then((value) => console.log(value)).catch((error) => console.log);
 login();
