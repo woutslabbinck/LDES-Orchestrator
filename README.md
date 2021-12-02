@@ -91,8 +91,11 @@ await ldes.createNextContainer();
 
 Requirements
 
-* have a solid pod container (`base`) where you have `acl:Control` rights to when logged in with a `session`
+* have a solid pod where you have `acl:Control` rights to when logged in with a `session`
+* create a `base` IRI in that solid pod
 
+e.g.
+https://solid.pod.com/ is the pod where you have acl:Control, then the `base` can be https://solid.pod.com/base/
 ```javascript
 const { LDESinSolid } = require('@treecg/ldes-orchestrator');
 

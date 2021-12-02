@@ -25,8 +25,8 @@ async function orchestrator(): Promise<void> {
     oidcIssuer: credentials.issuer,
   });
 
-  const base = 'https://tree.linkeddatafragments.org/announcements/test/';
-  // const base = 'https://tree.linkeddatafragments.org/announcements/';
+  // const base = 'https://tree.linkeddatafragments.org/announcements/new/';
+  const base = 'https://tree.linkeddatafragments.org/announcements/';
 
   const ldes = new LDESinSolid(session, base, 1);
 
@@ -54,7 +54,7 @@ async function createLDES() {
 
   const shape = 'https://tree.linkeddatafragments.org/announcements/shape';
   const treePath = 'http://purl.org/dc/terms/modified';
-  const base = 'https://tree.linkeddatafragments.org/announcements/test/';
+  const base = 'https://tree.linkeddatafragments.org/announcements/new/';
   const firstNodeName = new Date().getTime().toString();
 
   // const eventStream = await createEventStream(shape,treePath,firstNodeName,base);
@@ -67,5 +67,5 @@ async function createLDES() {
 
 }
 
-// orchestrator();
+orchestrator();
 // createLDES();

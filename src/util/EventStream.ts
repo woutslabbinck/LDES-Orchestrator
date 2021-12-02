@@ -26,7 +26,7 @@ const storeStream = require("rdf-store-stream").storeStream;
 export async function createEventStream(shape: string, treePath: string, firstNodeName: string, base: string): Promise<Store> {
   const eventStream: Collection = {
     "@context": {'@vocab': TREE.namespace},
-    "@id": "#Collection",
+    "@id": "root.ttl#Collection",
     "@type": [LDES.EventStream],
     shape: [{"@id": shape}],
     view: [{"@id": "root.ttl"}]

@@ -7,11 +7,11 @@
 import {Session} from "@inrupt/solid-client-authn-node";
 import {Store, Writer} from "n3";
 import rdfParser from "rdf-parse";
+import {Logger} from "./logging/Logger";
 import {createAclContent} from "./util/Acl";
 import {createEventStream} from "./util/EventStream";
 import {Acl, ACLConfig, LDESConfig} from "./util/Interfaces";
 import {ACL, LDP, RDF, TREE} from "./util/Vocabularies";
-
 const parse = require('parse-link-header');
 const storeStream = require("rdf-store-stream").storeStream;
 const streamify = require('streamify-string');
@@ -21,6 +21,8 @@ export class LDESinSolid {
   private readonly _aclConfig: ACLConfig;
   private readonly _session: Session;
   private readonly _amount: number;
+  private static readonly staticLogger = new Logger(LDESinSolid.name);
+  private readonly logger = LDESinSolid.staticLogger;
 
   constructor(ldesConfig: LDESConfig, aclConfig: ACLConfig, session: Session)
   constructor(ldesConfig: LDESConfig, aclConfig: ACLConfig, session: Session, amount: number)
@@ -58,7 +60,7 @@ export class LDESinSolid {
     const aclStore = await LDESinSolid.fetchStore(`${base}.acl`, session);
 
     // Assumes EventStream its subject is :#Collection
-    const shapeIRI = rootStore.getQuads(`${base}#Collection`, TREE.shape, null, null)[0].object.id;
+    const shapeIRI = rootStore.getQuads(`${rootIRI}#Collection`, TREE.shape, null, null)[0].object.id;
 
     // assumes node is called :root.ttl and there MUST be one relation
     // when no relation is present, the LDES in LDP is not created yet
@@ -121,7 +123,7 @@ export class LDESinSolid {
         Accept: "text/turtle"
       }});
     if (response.status !== 200) {
-      console.log(await response.text());
+      this.staticLogger.info(await response.text());
       throw Error(`Fetching ${iri} to parse it into an N3 Store has failed.`);
     }
     const currentContainerText = await response.text();
@@ -151,7 +153,7 @@ export class LDESinSolid {
       }
       throw Error(`Root "${iri}" was not created | status code: ${response.status}`);
     }
-    console.log(`LDP container created: ${response.url}`);
+    this.staticLogger.info(`LDP container created: ${response.url}`);
   }
 
   private static async updateAcl(aclIRI: string, aclBody: Acl[], session: Session): Promise<Response> {
@@ -180,7 +182,7 @@ export class LDESinSolid {
     if (response.status !== 205) {
       throw Error(`Adding the shape to the container (${iri}) was not successful | status code: ${response.status}`);
     }
-    console.log(`Shape validation added to ${response.url}`);
+    this.staticLogger.info(`Shape validation added to ${response.url}`);
   }
 
   private static async updateInbox(iri: string, inboxIRI: string, session: Session): Promise<void> {
@@ -194,7 +196,7 @@ export class LDESinSolid {
     if (response.status !== 205) {
       throw Error(`Updating the inbox was not successful | Status code: ${response.status}`);
     }
-    console.log(`${response.url} is now the inbox of the LDES.`);
+    this.staticLogger.info(`${response.url} is now the inbox of the LDES.`);
   }
 
   public async createLDESinLDP():Promise<void> {
@@ -237,6 +239,6 @@ export class LDESinSolid {
     if (postRootResponse.status !== 201) {
       throw Error(`Creating root.ttl was not successful | Status code: ${postRootResponse.status}`);
     }
-    console.log(`${postRootResponse.url} is the EventStream and view of the LDES in LDP.`);
+    this.logger.info(`${postRootResponse.url} is the EventStream and view of the LDES in LDP.`);
   }
 }

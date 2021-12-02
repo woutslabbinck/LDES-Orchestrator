@@ -27,8 +27,8 @@ async function getSession(): Promise<Session>{
 }
 async function getConfig(): Promise<void> {
   const session = await getSession();
-  const base = 'https://tree.linkeddatafragments.org/announcements/test/';
-  // const base = 'https://tree.linkeddatafragments.org/announcements/';
+  // const base = 'https://tree.linkeddatafragments.org/announcements/new/';
+  const base = 'https://tree.linkeddatafragments.org/announcements/';
 
   const config = await LDESinSolid.getConfig(base, session);
   const ldes = new LDESinSolid(config.ldesConfig, config.aclConfig, session);
@@ -41,7 +41,7 @@ async function getConfig(): Promise<void> {
 async function createNewLDES(): Promise<void> {
   const session = await getSession();
   const ldesConfig = {
-    base: 'https://tree.linkeddatafragments.org/announcements/lol/' ,
+    base: 'https://tree.linkeddatafragments.org/announcements/new/' ,
     treePath: 'http://purl.org/dc/terms/modified' , // valid shacl path
     shape: 'https://tree.linkeddatafragments.org/announcements/shape' , // IRI of the shape (to which all the members of the EventStream must conform to) (note: currently only SHACL shapes)
     relationType: 'https://w3id.org/tree#GreaterThanOrEqualToRelation' , // default: https://w3id.org/tree#GreaterThanOrEqualToRelation
@@ -55,8 +55,8 @@ async function createNewLDES(): Promise<void> {
 }
 async function execute(): Promise<void>{
   // test whether getConfig works
-  await getConfig();
-  // await createNewLDES();
+  // await getConfig();
+  await createNewLDES();
   process.exit();
 
 }
