@@ -8,8 +8,8 @@ import {Session} from "@inrupt/solid-client-authn-node";
 import {Store, Writer} from "n3";
 import rdfParser from "rdf-parse";
 import {Logger} from "./logging/Logger";
-import {createAclContent} from "./util/Acl";
-import {createEventStream, addRelation} from "./util/EventStream";
+import {AccessMode, AccessSubject, createAclContent} from "./util/Acl";
+import {addRelation, createEventStream} from "./util/EventStream";
 import {Acl, ACLConfig, LDESConfig} from "./util/Interfaces";
 import {ACL, LDP, RDF, TREE} from "./util/Vocabularies";
 
@@ -111,12 +111,12 @@ export class LDESinSolid {
   }
 
   /**
-     * Fetches the iri and transforms the contents to a N3 Store
-     * Note: currently only works for text/turle
-     * @param iri
-     * @param session
-     * @returns {Promise<Store>}
-     */
+   * Fetches the iri and transforms the contents to a N3 Store
+   * Note: currently only works for text/turle
+   * @param iri
+   * @param session
+   * @returns {Promise<Store>}
+   */
   private static async fetchStore(iri: string, session: Session): Promise<Store> {
     const response = await session.fetch(iri, {
       method: "GET",
@@ -136,11 +136,11 @@ export class LDESinSolid {
   }
 
   /**
-     * Creates a container. Only succeeds when a new container was created
-     * @param iri
-     * @param session
-     * @returns {Promise<void>}
-     */
+   * Creates a container. Only succeeds when a new container was created
+   * @param iri
+   * @param session
+   * @returns {Promise<void>}
+   */
   private static async createContainer(iri: string, session: Session): Promise<void> {
     const response = await session.fetch(iri, {
       method: "PUT",
@@ -231,14 +231,26 @@ export class LDESinSolid {
     this.staticLogger.info(`${updateRootResponse.url}  is updated with a new relation to ${iri}.`);
   }
 
-  public async createLDESinLDP(): Promise<void> {
+  /**
+   * Creates a new LDES in LDP.
+   * First the ldp:Container is created where everything will reside.
+   * Then a new container is added as defined in the UML sequence diagram for LDES in LDP.
+   * Finally a root is created (instead of updated).
+   *
+   * When the public can append to the new container, @param accessSubject should be AccessSubject.Public or left blank.
+   * When only the owner can append to the new container, it should be AccessSubject.Agent.
+   *
+   * @param accessSubject
+   * @returns {Promise<void>}
+   */
+  public async createLDESinLDP(accessSubject?: AccessSubject): Promise<void> {
+    accessSubject = accessSubject !== undefined ? accessSubject : AccessSubject.Public;
     // create root container
     await LDESinSolid.createContainer(this.ldesConfig.base, this.session);
 
     // create acl in root container (ACL:Control for agent and ACL:Read for everybody) // TODO: ACL permissions for everybody should be in config
-    const agentControlACL = createAclContent('orchestrator', [ACL.Read, ACL.Write, ACL.Control], this.aclConfig.agent);
-    const readACL = createAclContent('#authorization', [ACL.Read]);
-    await LDESinSolid.updateAcl(`${this.ldesConfig.base}.acl`, [agentControlACL, readACL], this.session);
+    const aclRootBody = this.createACLBody(accessSubject, AccessMode.Read);
+    await LDESinSolid.updateAcl(`${this.ldesConfig.base}.acl`, aclRootBody, this.session);
 
     const firstContainerName = new Date().getTime().toString();
     const firstContainerIRI = `${this.ldesConfig.base + firstContainerName}/`;
@@ -252,8 +264,8 @@ export class LDESinSolid {
     await LDESinSolid.updateInbox(this.ldesConfig.base, firstContainerIRI, this.session);
 
     // create acl file for first container to read + append
-    const readAppendACL = createAclContent('#authorization', [ACL.Read, ACL.Append]);
-    await LDESinSolid.updateAcl(`${firstContainerIRI}.acl`, [agentControlACL, readAppendACL], this.session);
+    const aclNewBody = this.createACLBody(accessSubject, AccessMode.ReadAppend);
+    await LDESinSolid.updateAcl(`${firstContainerIRI}.acl`, aclNewBody, this.session);
 
     // create root.ttl
     const eventStream = await createEventStream(this.ldesConfig.shape, this.ldesConfig.treePath, firstContainerName, this.ldesConfig.base);
@@ -274,9 +286,20 @@ export class LDESinSolid {
     this.logger.info(`${postRootResponse.url} is the EventStream and view of the LDES in LDP.`);
   }
 
-  public async createNewContainer(): Promise<void> {
+  /**
+   * Creates a new container when the old container is deemed full.
+   * It follows the sequence described in the UML sequence diagram for LDES in LDP.
+   *
+   * When the public can append to the new container, @param accessSubject should be AccessSubject.Public or left blank.
+   * When only the owner can append to the new container, it should be AccessSubject.Agent.
+   *
+   * @param accessSubject
+   * @returns {Promise<void>}
+   */
+  public async createNewContainer(accessSubject?: AccessSubject): Promise<void> {
     const currentContainerAmountResources = await this.getAmountResources();
     const oldContainer = await this.getCurrentContainer();
+    accessSubject = accessSubject !== undefined  ? accessSubject : AccessSubject.Public;
 
     if (currentContainerAmountResources < this.amount) {
       this.logger.info(`No need for orchestrating as current amount of resources (${currentContainerAmountResources}) is less than the maximum allowed amount of resources per container (${this.amount})`);
@@ -295,18 +318,43 @@ export class LDESinSolid {
     await LDESinSolid.addShape(newContainerIRI, this.ldesConfig.shape, this.session);
 
     // create acl file for new container to read + append
-    const readAppendACL = createAclContent('#authorization', [ACL.Read, ACL.Append]);
-    const agentControlACL = createAclContent('orchestrator', [ACL.Read, ACL.Write, ACL.Control], this.aclConfig.agent);
-    await LDESinSolid.updateAcl(`${newContainerIRI}.acl`, [agentControlACL, readAppendACL], this.session);
+    const aclNewBody = this.createACLBody(accessSubject, AccessMode.ReadAppend);
+    await LDESinSolid.updateAcl(`${newContainerIRI}.acl`, aclNewBody, this.session);
 
     // change inbox header in root container .meta
     await LDESinSolid.updateInbox(this.ldesConfig.base, newContainerIRI, this.session);
 
     // update acl of current container to only read
-    const readACL = createAclContent('#authorization', [ACL.Read]);
-    await LDESinSolid.updateAcl(`${oldContainer}.acl`, [agentControlACL, readACL], this.session);
+    const aclCurrentBody = this.createACLBody(accessSubject, AccessMode.Read);
+    await LDESinSolid.updateAcl(`${oldContainer}.acl`, aclCurrentBody, this.session);
 
     // update relation in root.ttl
     await LDESinSolid.addRelation(newContainerIRI, this.ldesConfig, this.session);
   }
+
+  /**
+   * Create the AclBody
+   * When the subject is public, everybody is allowed to interact with the accompanying resources
+   * @param accessSubject
+   * @param accessMode mode for interacting with the accompanying resource
+   * @returns {Acl[]}
+   */
+  private createACLBody(accessSubject: AccessSubject, accessMode: AccessMode): Acl[] {
+    const aclBody: Acl[] = [];
+    // always allow that the agent has control over the resources
+    aclBody.push(createAclContent('#orchestrator', [ACL.Read, ACL.Write, ACL.Control], this.aclConfig.agent));
+    if (accessSubject === AccessSubject.Public) {
+      switch (accessMode) {
+      case AccessMode.ReadAppend:
+        aclBody.push(createAclContent('#authorization', [ACL.Read, ACL.Append]));
+        break;
+      case AccessMode.Read:
+        aclBody.push(createAclContent('#authorization', [ACL.Read]));
+        break;
+      default:
+      }
+    }
+    return aclBody;
+  }
 }
+

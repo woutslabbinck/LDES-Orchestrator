@@ -2,6 +2,7 @@
 Fills the gaps that a Linked Data Platform (LDP) cannot do by itself for creating a Linked Data Event Stream (LDES) in LDP.
 
 ## How to use
+in src a .env has to be made with as content the identity provider (e.g. SOLID_IDP=https://broker.pod.inrupt.com )
 
 ```bash
 npm install

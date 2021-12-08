@@ -68,7 +68,7 @@ async function addRelation(): Promise<void> {
 
 async function orchestrate(): Promise<void> {
   const session = await getSession();
-  const base = 'https://tree.linkeddatafragments.org/announcements/new/';
+  const base = 'https://tree.linkeddatafragments.org/announcements/';
   const config = await LDESinSolid.getConfig(base, session);
 
   const ldes = new LDESinSolid(config.ldesConfig, config.aclConfig, session, 1);
@@ -77,12 +77,29 @@ async function orchestrate(): Promise<void> {
   await orchestrator.orchestrateLDES(ldes, 5);
 }
 
+async function getAcl(): Promise<void>{
+  const session = await getSession();
+  const response = await session.fetch('https://tree.linkeddatafragments.org/datasets/curated/.acl');
+  console.log(response.headers.get('content-type'));
+  console.log(await response.text());
+  const responseTurtle = await session.fetch('https://tree.linkeddatafragments.org/datasets/curated/.acl',{
+    method: "GET",
+    headers: {
+      Accept: "text/turtle"
+    }
+  });
+  console.log(responseTurtle.headers.get('content-type'));
+  console.log(await responseTurtle.text());
+
+}
+
 async function execute(): Promise<void> {
   // test whether getConfig works
   // await getConfig();
   // await createNewLDES();
   // await addRelation();
-  await orchestrate();
+  // await orchestrate();
+  await getAcl();
   process.exit();
 
 }

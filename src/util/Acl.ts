@@ -30,3 +30,13 @@ export function createAclContent(id: string, modes: string[], agent?: string): A
   }
   return aclBody;
 }
+
+export enum AccessSubject {
+  Agent, // only the agent can interact with the accompanying resource later
+  Public// everyone can interact with the accompanying resource later
+}
+
+export enum AccessMode {
+  Read,
+  ReadAppend
+}
