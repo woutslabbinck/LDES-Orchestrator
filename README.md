@@ -117,6 +117,15 @@ await ldes.createLDESinLDP();
 
 after executing this code, you can go to base to see that an LDES is created (especially see the root at <base>root.ttl)
 
+It is also possible to create an LDESinSolid which is only visible to you.
+
+```typescript
+const { AccessSubject} = require('@treecg/ldes-orchestrator')
+await ldes.createLDESinLDP(AccessSubject.Agent);
+```
+
+
+
 ## The orchestrator
 
 Requirements

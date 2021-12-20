@@ -5,7 +5,8 @@
  * Created on 26/11/2021
  *****************************************/
 
-import {writeFileSync} from "fs";
+import {readdirSync, writeFileSync} from "fs";
+import Path from "path";
 import {
   ILoginInputOptions, InMemoryStorage,
   Session
@@ -13,6 +14,7 @@ import {
 
 import {config} from 'dotenv';
 import express from "express";
+import {sleep} from "./util/Util";
 
 config();
 
@@ -98,9 +100,21 @@ These are your login credentials:
     writeFileSync('config.json', JSON.stringify(storedSession));
 
     server.close();
-    process.exit();
   });
 }
 
-// login().then((value) => console.log(value)).catch((error) => console.log);
-login();
+/**
+ * Function only stops when a config file is created -> indicating that a user is logged in
+ */
+export async function isLoggedin():Promise<void> {
+  const rootPath = Path.join(__dirname, '..');
+  let loggedIn = false;
+  while (!loggedIn) {
+    const files = readdirSync(rootPath);
+    if (files.includes('config.json')) {
+      loggedIn = true;
+      break;
+    }
+    await sleep(1000);
+  }
+}

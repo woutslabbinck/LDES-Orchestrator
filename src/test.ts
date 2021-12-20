@@ -8,12 +8,14 @@ import {readFileSync} from "fs";
 import {Session} from "@inrupt/solid-client-authn-node";
 import {config} from 'dotenv';
 import {LDESinSolid} from "./LDESinSolid";
+import {isLoggedin, login} from "./Login";
 import {Orchestrator} from "./Orchestrator";
 
-const credentials = JSON.parse(readFileSync('config.json', 'utf-8'));
 config();
 
 async function getSession(): Promise<Session> {
+  const credentials = JSON.parse(readFileSync('config.json', 'utf-8'));
+
   const session = new Session();
   session.onNewRefreshToken((newToken: string): void => {
     console.log("New refresh token: ", newToken);
@@ -77,12 +79,12 @@ async function orchestrate(): Promise<void> {
   await orchestrator.orchestrateLDES(ldes, 5);
 }
 
-async function getAcl(): Promise<void>{
+async function getAcl(): Promise<void> {
   const session = await getSession();
   const response = await session.fetch('https://tree.linkeddatafragments.org/datasets/curated/.acl');
   console.log(response.headers.get('content-type'));
   console.log(await response.text());
-  const responseTurtle = await session.fetch('https://tree.linkeddatafragments.org/datasets/curated/.acl',{
+  const responseTurtle = await session.fetch('https://tree.linkeddatafragments.org/datasets/curated/.acl', {
     method: "GET",
     headers: {
       Accept: "text/turtle"
@@ -94,14 +96,15 @@ async function getAcl(): Promise<void>{
 }
 
 async function execute(): Promise<void> {
+  login();
+  await isLoggedin();
   // test whether getConfig works
-  // await getConfig();
+  await getConfig();
   // await createNewLDES();
   // await addRelation();
   // await orchestrate();
-  await getAcl();
+  // await getAcl();
   process.exit();
-
 }
 
 execute();
