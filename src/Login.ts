@@ -5,7 +5,7 @@
  * Created on 26/11/2021
  *****************************************/
 
-import {readdirSync, writeFileSync} from "fs";
+import {readdirSync, readFileSync, unlinkSync, writeFileSync} from "fs";
 import Path from "path";
 import {
   ILoginInputOptions, InMemoryStorage,
@@ -30,7 +30,7 @@ const validatedOptions: InputOptions = {
 
 };
 
-export async function login(): Promise<any> {
+export async function login(): Promise<void> {
   const app = express();
   const port = 3000;
   const iriBase = `http://localhost:${port}`;
@@ -97,7 +97,7 @@ These are your login credentials:
     );
 
     // write session away
-    writeFileSync('config.json', JSON.stringify(storedSession));
+    writeFileSync(Path.join(__dirname,'config.json'), JSON.stringify(storedSession));
 
     server.close();
   });
@@ -107,7 +107,7 @@ These are your login credentials:
  * Function only stops when a config file is created -> indicating that a user is logged in
  */
 export async function isLoggedin():Promise<void> {
-  const rootPath = Path.join(__dirname, '..');
+  const rootPath = __dirname;
   let loggedIn = false;
   while (!loggedIn) {
     const files = readdirSync(rootPath);
@@ -117,4 +117,22 @@ export async function isLoggedin():Promise<void> {
     }
     await sleep(1000);
   }
+}
+
+export async function getSession(): Promise<Session> {
+  const configPath = Path.join(__dirname,'config.json');
+  const credentials = JSON.parse(readFileSync(configPath, 'utf-8'));
+
+  const session = new Session();
+  session.onNewRefreshToken((newToken: string): void => {
+    console.log("New refresh token: ", newToken);
+  });
+  await session.login({
+    clientId: credentials.clientId,
+    clientSecret: credentials.clientSecret,
+    refreshToken: credentials.refreshToken,
+    oidcIssuer: credentials.issuer,
+  });
+  unlinkSync(configPath);
+  return session;
 }

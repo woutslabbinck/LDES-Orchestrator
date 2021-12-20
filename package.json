@@ -7,9 +7,6 @@
   "scripts": {
     "test": "jest",
     "build": "rm -rf dist/; tsc",
-    "start": "npm run build && node dist/index.js",
-    "login": "npm run build && node dist/Login.js",
-    "orchestrate": "npm run build && node dist/Login.js && node dist/index.js && rm config.json",
     "lint": "eslint . --ext .ts",
     "lint-and-fix": "eslint . --ext .ts --fix"
   },

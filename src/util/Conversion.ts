@@ -11,8 +11,8 @@ import {Store, Writer} from "n3";
 import {ParseOptions} from "rdf-parse/lib/RdfParser";
 
 const rdfParser = require("rdf-parse").default;
-const streamifyString = require('streamify-string');
 const storeStream = require("rdf-store-stream").storeStream;
+const streamifyString = require('streamify-string');
 
 export async function turtleStringToStore(text: string, baseIRI?: string): Promise<Store> {
   return await stringToStore(text, {contentType: 'text/turtle', baseIRI});

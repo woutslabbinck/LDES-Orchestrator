@@ -10,6 +10,7 @@ import {config} from 'dotenv';
 import {LDESinSolid} from "./LDESinSolid";
 import {isLoggedin, login} from "./Login";
 import {Orchestrator} from "./Orchestrator";
+import {AccessSubject} from "./util/Acl";
 
 config();
 
@@ -95,6 +96,22 @@ async function getAcl(): Promise<void> {
 
 }
 
+async function createCuratedLDES(): Promise<void> {
+  const session = await getSession();
+  const ldesConfig = {
+    base: 'https://tree.linkeddatafragments.org/datasets/curated/',
+    treePath: 'http://purl.org/dc/terms/modified', // valid shacl path
+    shape: 'https://tree.linkeddatafragments.org/announcements/shape', // IRI of the shape (to which all the members of the EventStream must conform to) (note: currently only SHACL shapes)
+    relationType: 'https://w3id.org/tree#GreaterThanOrEqualToRelation', // default: https://w3id.org/tree#GreaterThanOrEqualToRelation
+  };
+  const aclConfig = {
+    agent: 'https://pod.inrupt.com/woutslabbinck/profile/card#me' // this is the webId used in the session
+    // this is the webId used in the session
+  };
+  const ldes = new LDESinSolid(ldesConfig, aclConfig, session);
+  await ldes.createLDESinLDP(AccessSubject.Agent); // create private LDES for curation
+}
+
 async function execute(): Promise<void> {
   login();
   await isLoggedin();
@@ -104,6 +121,7 @@ async function execute(): Promise<void> {
   // await addRelation();
   // await orchestrate();
   // await getAcl();
+  // await createCuratedLDES();
   process.exit();
 }
 

@@ -1,14 +1,13 @@
-import {readdirSync, readFileSync} from "fs";
+import {readdirSync} from "fs";
 import Path from "path";
 import {Session} from "@inrupt/solid-client-authn-node";
 import {createViewAnnouncement, postAnnouncement} from "@treecg/ldes-announcements";
 import {AnnouncementConfig} from "@treecg/ldes-announcements/dist/lib/Writer";
 import {Announce} from "@treecg/ldes-announcements/dist/util/Interfaces";
 import {Literal} from "n3";
-import {LDESConfig, ACLConfig, LDESinSolid, Orchestrator} from "../src";
+import {LDESConfig, ACLConfig, LDESinSolid, Orchestrator,ACL, DCT, LDP, RDF, TREE, XSD, FOAF, LDES,getSession} from "../src";
 import {fileAsStore, turtleStringToStore} from "../src/util/Conversion";
 import {sleep} from "../src/util/Util";
-import {ACL, DCT, LDP, RDF, TREE, XSD, FOAF, LDES} from "../src/util/Vocabularies";
 import {solidUrl} from "./solidHelper";
 
 const parse = require('parse-link-header');
@@ -21,21 +20,7 @@ describe('Integration test for LDESinSolid and Orchestrating functionalities', (
 
   beforeAll(async () => {
     // create session
-    session = new Session();
-    const rootPath = Path.join(__dirname, '..');
-    const configFileName = 'config.json';
-    const configPath = Path.join(rootPath, configFileName);
-
-    const credentials = JSON.parse(readFileSync(configPath, 'utf-8'));
-    session.onNewRefreshToken((newToken: string): void => {
-      console.log("New refresh token: ", newToken);
-    });
-    await session.login({
-      clientId: credentials.clientId,
-      clientSecret: credentials.clientSecret,
-      refreshToken: credentials.refreshToken,
-      oidcIssuer: credentials.issuer,
-    });
+    session = await getSession();
 
     // create announcement
     const viewString = '<https://test/output/root.ttl> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://w3id.org/tree#Node>.';

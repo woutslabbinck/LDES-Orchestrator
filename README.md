@@ -1,68 +1,48 @@
 # LDES-Orchestrator
-Fills the gaps that a Linked Data Platform (LDP) cannot do by itself for creating a Linked Data Event Stream (LDES) in LDP.
+Fills the gaps that a Linked Data Platform (LDP) cannot do by itself for creating a Linked Data Event Stream (LDES) in LDP. It creates extra relations and corresponding metadata when needed to improve the scalability of a growing LDES in LDP.
 
-## How to use
-in src a .env has to be made with as content the identity provider (e.g. SOLID_IDP=https://broker.pod.inrupt.com )
+## Set up
+Create  an environment file in the root directory of where you cloned the repository  (`.env`) has to be made with as content the identity provider used for your WebID. (e.g. SOLID_IDP=https://broker.pod.inrupt.com )
 
-```bash
-npm install
+For orchestrating your LDES in Solid, this webID should have acl:Control rights ([WAC](https://solidproject.org/TR/wac)) to the ldp:Container of the LDES in Solid.
 
-npm run orchestrate
+```txt
+SOLID_IDP=https://broker.pod.inrupt.com
 ```
-
-Currently it only does an authenticated fetch to tree.linkeddatfragments.org/announcements using the broker.pod.inrupt.com idp
 
 ## Session
 
-more information see https://docs.inrupt.com/developer-tools/javascript/client-libraries/tutorial/authenticate-nodejs/
-
-Credentials can be obtained by executing login
-
-```bash
-npm run login
-```
-
- After logging in, the credentials of the session will be printed to standard out
+Credentials can be obtained by executing the `login()` function in your code. When a login was successful, those credentials will be printed out to system out like the following:
 
 ```bash
 These are your login credentials:
 {
-  "refreshToken" : "4sIKfVp0fOEQA2hit0LG9uk6O93CCahn",
-  "clientId"     : "jpPcrTavRaZN5YPxryBxxpKt19hFgEVi",
-  "clientSecret" : "R7Ji4CBLTl3KndHtkYlLq15vb3ZIXJW9",
+  "refreshToken" : <token>,
+  "clientId"     : <id>,
+  "clientSecret" : <secret>,
   "issuer"       : "https://broker.pod.inrupt.com/",
 }
 ```
 
-Plug the credentials into this bit of code to get a session.
+Those credentials will be used to get a Session. When logged in, the function `getSession()` can be used to get a Session using those credentials.
+
+```javascript
+const { login, isLoggedin, getSession } = require("@treecg/ldes-orchestrator")
+
+login();
+await isLoggedin(); // code that checks whether you are already logged in
+const session = await getSession();
+```
 
 Warning: when you use the credentials once, you will have to log in again to get new credentials.
 
-```javascript
-const { Session } = require("@inrupt/solid-client-authn-node");
-
-credentials = {
-    "clientId": "jpPcrTavRaZN5YPxryBxxpKt19hFgEVi",
-    "clientSecret": "R7Ji4CBLTl3KndHtkYlLq15vb3ZIXJW9",
-    "issuer": "https://broker.pod.inrupt.com/",
-    "refreshToken": "4sIKfVp0fOEQA2hit0LG9uk6O93CCahn",
-}
-
-const session = new Session();
-session.onNewRefreshToken((newToken: string): void => {
-                          console.log("New refresh token: ", newToken);
-});
-await session.login({
-    clientId: credentials.clientId,
-    clientSecret: credentials.clientSecret,
-    refreshToken: credentials.refreshToken,
-    oidcIssuer: credentials.issuer,
-});
-```
+more information see about the Session class can be found here: https://docs.inrupt.com/developer-tools/javascript/client-libraries/tutorial/authenticate-nodejs/
 
 ## Using LDESinSolid
 
 ### Existing LDES in LDP
+
+Here the LDES in LDP already exists on a given url (which is the variable `base` in the code)
 
 Requirements
 
@@ -71,10 +51,14 @@ Requirements
 * have a session (see [Session](#session))
 
 ```javascript
-const { LDESinSolid } = require('@treecg/ldes-orchestrator');
+const { LDESinSolid,login, isLoggedin, getSession } = require('@treecg/ldes-orchestrator');
+
+// log in and get session
+login();
+await isLoggedin(); 
+const session = await getSession();
 
 const base = ... ;
-const session = ... ;
 const config = LDESinSolid.getConfig(base);
 const ldes = new LDESinSolid(config.LDES, config.ACL, session);
 
@@ -95,17 +79,20 @@ Requirements
 * have a solid pod where you have `acl:Control` rights to when logged in with a `session`
 * create a `base` IRI in that solid pod
 
-e.g.
-https://solid.pod.com/ is the pod where you have acl:Control, then the `base` can be https://solid.pod.com/base/
+e.g. https://solid.pod.com/ is the pod where you have acl:Control, then the `base` can be https://solid.pod.com/base/
 ```javascript
-const { LDESinSolid } = require('@treecg/ldes-orchestrator');
+const { LDESinSolid,login, isLoggedin, getSession } = require('@treecg/ldes-orchestrator');
 
-const session = ... ;
+// log in and get session
+login();
+await isLoggedin(); 
+const session = await getSession();
+
 const ldesConfig = {
     base : ... ,
     treePath: ... , // valid shacl path
     shape: ... , // IRI of the shape (to which all the members of the EventStream must conform to) (note: currently only SHACL shapes)
-    relationType ... , // default: https://w3id.org/tree#GreaterThanOrEqualToRelation
+    relationType: ... , // default: https://w3id.org/tree#GreaterThanOrEqualToRelation
 }
 const aclConfig = {
     agent: ... // this is the webId used in the session
@@ -133,13 +120,20 @@ Requirements
 * have a `base` IRI of an LDES in LDP where you have `acl:Control` rights when logged in with a `session`
 
 ```javascript
-const { Orchestrator } = require('@treecg/ldes-orchestrator');
+const { Orchestrator,login, isLoggedin, getSession } = require('@treecg/ldes-orchestrator');
 
-const session = ... ;
+// log in and get session
+login();
+await isLoggedin(); 
+const session = await getSession();
+
 const base = ... ;
-const orchestrator = new Orchestrator(session);
+
 
 // the second parameter is the interval (s), thus each 5 minutes the orchestrator runs and when needed creates a new container
+const config = LDESinSolid.getConfig(base);
+const ldes = new LDESinSolid(config.LDES, config.ACL, session);
+const orchestrator = new Orchestrator(session);
 orchestrator.orchestrateLDES(base, 300);
 
 ```

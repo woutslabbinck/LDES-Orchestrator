@@ -11,8 +11,8 @@ import {LDES, RDF, TREE, XSD} from "./Vocabularies";
 import namedNode = DataFactory.namedNode;
 import literal = DataFactory.literal;
 
-const streamify = require('streamify-string');
 const storeStream = require("rdf-store-stream").storeStream;
+const streamify = require('streamify-string');
 
 /**
  * Creates an LDES EventStream with the first relation
