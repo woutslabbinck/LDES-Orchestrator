@@ -5,7 +5,7 @@ import {createViewAnnouncement, postAnnouncement} from "@treecg/ldes-announcemen
 import {AnnouncementConfig} from "@treecg/ldes-announcements/dist/lib/Writer";
 import {Announce} from "@treecg/ldes-announcements/dist/util/Interfaces";
 import {Literal} from "n3";
-import {LDESConfig, ACLConfig, LDESinSolid, Orchestrator,ACL, DCT, LDP, RDF, TREE, XSD, FOAF, LDES,getSession} from "../src";
+import {LDESConfig, ACLConfig, LDESinSolid, Orchestrator,ACL, DCT, LDP, RDF, TREE, XSD, FOAF, LDES,getSession} from "../index";
 import {fileAsStore, turtleStringToStore} from "../src/util/Conversion";
 import {sleep} from "../src/util/Util";
 import {solidUrl} from "./solidHelper";

@@ -1,12 +1,13 @@
 {
   "name": "@treecg/ldes-orchestrator",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Fills the gaps that a Linked Data Platform (LDP) cannot do by itself for creating a Linked Data Event Stream (LDES) in LDP.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "test": "jest",
     "build": "rm -rf dist/; tsc",
+    "publish": "npm run build && npm publish",
     "lint": "eslint . --ext .ts",
     "lint-and-fix": "eslint . --ext .ts --fix"
   },
