@@ -1,6 +1,6 @@
 {
   "name": "@treecg/ldes-orchestrator",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Fills the gaps that a Linked Data Platform (LDP) cannot do by itself for creating a Linked Data Event Stream (LDES) in LDP.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -46,8 +46,8 @@
     "typescript": "^4.5.2"
   },
   "dependencies": {
-    "@inrupt/solid-client-authn-node": "^1.11.2",
     "@rdfjs/data-model": "^1.3.4",
+    "@rubensworks/solid-client-authn-isomorphic": "^1.0.0",
     "@treecg/ldes-announcements": "^0.0.4",
     "@treecg/tree-metadata-extraction": "^1.2.1",
     "dotenv": "^10.0.0",
@@ -57,6 +57,7 @@
     "rdf-parse": "^1.9.1",
     "rdf-store-stream": "^1.3.0",
     "streamify-string": "^1.0.1",
-    "winston": "^3.3.3"
+    "loglevel": "^1.8.0",
+    "loglevel-plugin-prefix": "^0.8.4"
   }
 }

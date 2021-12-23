@@ -6,8 +6,8 @@ async function start(): Promise<void> {
   // start server and wait till it is running + login and wait till that has succeeded
   login();
   runSolid();
-  await isRunning();
   await isLoggedin();
+  await isRunning();
 
 }
 

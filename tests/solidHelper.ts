@@ -1,6 +1,9 @@
+import {readFileSync} from "fs";
 import Path from "path";
 import {AppRunner} from "@solid/community-server";
 import {config} from "dotenv";
+import {Store} from "n3";
+import {stringToStore} from "../src/util/Conversion";
 import {sleep} from "../src/util/Util";
 
 /***************************************
@@ -57,4 +60,16 @@ export async function isRunning(): Promise<void> {
     }
     await sleep(1000);
   }
+}
+
+/**
+ * Convert a file as a store (given a path). Default will use text/turtle as content type
+ * @param path
+ * @param contentType
+ * @returns {Promise<Store>}
+ */
+export async function fileAsStore(path: string, contentType?: string): Promise<Store> {
+  contentType = contentType ? contentType : 'text/turtle';
+  const text = readFileSync(Path.join(path), "utf8");
+  return await stringToStore(text, {contentType});
 }

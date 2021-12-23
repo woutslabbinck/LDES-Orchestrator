@@ -4,47 +4,25 @@
  * Author: Wout Slabbinck (wout.slabbinck@ugent.be)
  * Created on 26/11/2021
  *****************************************/
-import {readFileSync} from "fs";
-import {Session} from "@inrupt/solid-client-authn-node";
-import {config} from 'dotenv';
+
+import {Session} from "@rubensworks/solid-client-authn-isomorphic";
 import {LDESinSolid} from "./LDESinSolid";
-import {isLoggedin, login} from "./Login";
+import {getSession, isLoggedin, login} from "./Login";
 import {Orchestrator} from "./Orchestrator";
 import {AccessSubject} from "./util/Acl";
 
-config();
-
-async function getSession(): Promise<Session> {
-  const credentials = JSON.parse(readFileSync('config.json', 'utf-8'));
-
-  const session = new Session();
-  session.onNewRefreshToken((newToken: string): void => {
-    console.log("New refresh token: ", newToken);
-  });
-  await session.login({
-    clientId: credentials.clientId,
-    clientSecret: credentials.clientSecret,
-    refreshToken: credentials.refreshToken,
-    oidcIssuer: credentials.issuer,
-  });
-  return session;
-}
-
+let session : Session;
 async function getConfig(): Promise<void> {
-  const session = await getSession();
-  // const base = 'https://tree.linkeddatafragments.org/announcements/new/';
-  const base = 'https://tree.linkeddatafragments.org/announcements/';
+  const base = 'http://localhost:3050/new/';
+  // const base = 'https://tree.linkeddatafragments.org/announcements/';
 
   const config = await LDESinSolid.getConfig(base, session);
   const ldes = new LDESinSolid(config.ldesConfig, config.aclConfig, session);
 
   console.log(await ldes.getAmountResources());
-
-
 }
 
 async function createNewLDES(): Promise<void> {
-  const session = await getSession();
   const ldesConfig = {
     base: 'https://tree.linkeddatafragments.org/announcements/new/',
     treePath: 'http://purl.org/dc/terms/modified', // valid shacl path
@@ -60,7 +38,6 @@ async function createNewLDES(): Promise<void> {
 }
 
 async function addRelation(): Promise<void> {
-  const session = await getSession();
   const base = 'https://tree.linkeddatafragments.org/announcements/new/';
   const config = await LDESinSolid.getConfig(base, session);
   const ldes = new LDESinSolid(config.ldesConfig, config.aclConfig, session, 1);
@@ -70,7 +47,6 @@ async function addRelation(): Promise<void> {
 }
 
 async function orchestrate(): Promise<void> {
-  const session = await getSession();
   const base = 'https://tree.linkeddatafragments.org/announcements/';
   const config = await LDESinSolid.getConfig(base, session);
 
@@ -81,7 +57,6 @@ async function orchestrate(): Promise<void> {
 }
 
 async function getAcl(): Promise<void> {
-  const session = await getSession();
   const response = await session.fetch('https://tree.linkeddatafragments.org/datasets/curated/.acl');
   console.log(response.headers.get('content-type'));
   console.log(await response.text());
@@ -97,7 +72,6 @@ async function getAcl(): Promise<void> {
 }
 
 async function createCuratedLDES(): Promise<void> {
-  const session = await getSession();
   const ldesConfig = {
     base: 'https://tree.linkeddatafragments.org/datasets/curated/',
     treePath: 'http://purl.org/dc/terms/modified', // valid shacl path
@@ -115,14 +89,20 @@ async function createCuratedLDES(): Promise<void> {
 async function execute(): Promise<void> {
   login();
   await isLoggedin();
+  session = await getSession();
+  const base = 'http://localhost:3050/new/';
+  const config = await LDESinSolid.getConfig(base, session);
+  const ldes = new LDESinSolid(config.ldesConfig, config.aclConfig, session,1);
+  const orchestrator = new Orchestrator(session);
+  orchestrator.orchestrateLDES(ldes,1);
   // test whether getConfig works
-  await getConfig();
+  // await getConfig();
   // await createNewLDES();
   // await addRelation();
   // await orchestrate();
   // await getAcl();
   // await createCuratedLDES();
-  process.exit();
+  // process.exit();
 }
 
 execute();

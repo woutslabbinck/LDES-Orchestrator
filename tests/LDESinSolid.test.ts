@@ -1,14 +1,15 @@
 import {readdirSync} from "fs";
 import Path from "path";
-import {Session} from "@inrupt/solid-client-authn-node";
+import {Session} from "@rubensworks/solid-client-authn-isomorphic";
 import {createViewAnnouncement, postAnnouncement} from "@treecg/ldes-announcements";
 import {AnnouncementConfig} from "@treecg/ldes-announcements/dist/lib/Writer";
 import {Announce} from "@treecg/ldes-announcements/dist/util/Interfaces";
 import {Literal} from "n3";
-import {LDESConfig, ACLConfig, LDESinSolid, Orchestrator,ACL, DCT, LDP, RDF, TREE, XSD, FOAF, LDES,getSession} from "../index";
-import {fileAsStore, turtleStringToStore} from "../src/util/Conversion";
+import {LDESConfig, ACLConfig, LDESinSolid, Orchestrator,ACL, DCT, LDP, RDF, TREE, XSD, FOAF, LDES} from "../index";
+import {getSession} from "../src/Login";
+import {turtleStringToStore} from "../src/util/Conversion";
 import {sleep} from "../src/util/Util";
-import {solidUrl} from "./solidHelper";
+import {fileAsStore, solidUrl} from "./solidHelper";
 
 const parse = require('parse-link-header');
 

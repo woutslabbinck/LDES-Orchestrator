@@ -1,4 +1,4 @@
-import {Session} from "@inrupt/solid-client-authn-node";
+import {Session} from "@rubensworks/solid-client-authn-isomorphic";
 import {LDESinSolid} from "./LDESinSolid";
 
 /***************************************

@@ -7,10 +7,7 @@
 
 import {readdirSync, readFileSync, unlinkSync, writeFileSync} from "fs";
 import Path from "path";
-import {
-  ILoginInputOptions, InMemoryStorage,
-  Session
-} from "@inrupt/solid-client-authn-node";
+import {Session, ILoginInputOptions, InMemoryStorage} from "@rubensworks/solid-client-authn-isomorphic";
 
 import {config} from 'dotenv';
 import express from "express";

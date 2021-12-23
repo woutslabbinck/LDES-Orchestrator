@@ -1,10 +1,10 @@
 /***************************************
- * Title: LDESinSolidv2
+ * Title: LDESinSolid
  * Description: class for LDES in Solid
  * Author: Wout Slabbinck (wout.slabbinck@ugent.be)
  * Created on 01/12/2021
  *****************************************/
-import {Session} from "@inrupt/solid-client-authn-node";
+import {Session} from "@rubensworks/solid-client-authn-isomorphic";
 import {Store, Writer} from "n3";
 import rdfParser from "rdf-parse";
 import {Logger} from "./logging/Logger";
