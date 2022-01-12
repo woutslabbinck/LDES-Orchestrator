@@ -5,9 +5,9 @@
  * Created on 01/12/2021
  *****************************************/
 import {Session} from "@rubensworks/solid-client-authn-isomorphic";
+import {LoggerBrowser as Logger} from "@treecg/types/dist/lib/utils/Logger-Browser";
 import {Store, Writer} from "n3";
 import rdfParser from "rdf-parse";
-import {Logger} from "./logging/Logger";
 import {AccessMode, AccessSubject, createAclContent} from "./util/Acl";
 import {addRelation, createEventStream} from "./util/EventStream";
 import {Acl, ACLConfig, LDESConfig} from "./util/Interfaces";
@@ -299,7 +299,7 @@ export class LDESinSolid {
   public async createNewContainer(accessSubject?: AccessSubject): Promise<void> {
     const currentContainerAmountResources = await this.getAmountResources();
     const oldContainer = await this.getCurrentContainer();
-    accessSubject = accessSubject !== undefined  ? accessSubject : AccessSubject.Public;
+    accessSubject = accessSubject !== undefined ? accessSubject : AccessSubject.Public;
 
     if (currentContainerAmountResources < this.amount) {
       this.logger.info(`No need for orchestrating as current amount of resources (${currentContainerAmountResources}) is less than the maximum allowed amount of resources per container (${this.amount})`);
